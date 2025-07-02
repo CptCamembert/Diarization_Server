@@ -107,10 +107,43 @@ pathlib2==2.3.7.post1     # Path utilities
 2. Verify port 8000 is available: `netstat -tulpn | grep 8000`
 3. Check container logs: `docker logs diarization-server`
 
+### Network Connectivity Issues
+If you see errors like "Temporary failure in name resolution" or "Failed to resolve 'cdn-lfs.hf.co'":
+
+1. **Check Internet Connection**: Ensure your system has internet access
+   ```bash
+   ping huggingface.co
+   ```
+
+2. **DNS Resolution Issues**: If DNS is failing, try:
+   ```bash
+   # Check DNS settings
+   cat /etc/resolv.conf
+   # Try alternative DNS servers
+   echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+   ```
+
+3. **Corporate Firewall/Proxy**: If behind a corporate firewall:
+   - Contact your IT administrator about accessing HuggingFace Hub
+   - You may need to configure proxy settings for Docker
+
+4. **Pre-download Models**: Download models manually when you have connectivity:
+   ```bash
+   # Run container with internet access first to download models
+   ./docker/up.sh
+   # Models will be cached in the model/ directory for offline use
+   ```
+
+5. **Offline Mode**: The server now includes improved offline fallback:
+   - If model files exist locally, they will be used automatically
+   - Network connectivity is checked before attempting downloads
+   - Clear error messages are provided for troubleshooting
+
 ### Model Download Issues
 - First run requires internet connection to download SpeechBrain models
 - Models are cached in the `model/` directory for subsequent runs
-- If download fails, delete `model/` directory and restart container
+- If download fails, delete `model/` directory and restart container when connectivity is restored
+- The server now gracefully handles network failures and provides informative error messages
 
 ### Audio Processing Warnings
 - TorchAudio backend warnings are non-critical

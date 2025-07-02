@@ -7,6 +7,8 @@ import torch
 import numpy as np
 from scipy.spatial.distance import cdist
 from queue import Queue
+import time
+import requests
 
 # Get paths from environment variables with fallback defaults
 MODEL_DIR = os.environ.get('MODEL_DIR', 'tmp_model')
@@ -30,12 +32,8 @@ class SpeechBrainRecognizer:
         model_path = MODEL_DIR
         print(f"Using model directory: {model_path}")
         
-        # Load from the specified directory if it exists, otherwise download
-        self.model = SpeakerRecognition.from_hparams(
-            source="speechbrain/spkrec-ecapa-voxceleb", 
-            savedir=model_path,            
-            local_strategy=LocalStrategy.COPY_SKIP_CACHE
-        )
+        # Try to load model with network connectivity handling
+        self.model = self._load_model_with_fallback(model_path)
         
         self.started = False
         self.sample_rate = rate  # Sample rate from audio streamer
@@ -43,6 +41,64 @@ class SpeechBrainRecognizer:
         self.load_embeddings()  # Load existing speaker embeddings
 
         print("SpeechBrain model initialized")
+
+    def _check_network_connectivity(self):
+        """Check if we have network connectivity to HuggingFace."""
+        try:
+            response = requests.get("https://huggingface.co", timeout=5)
+            return response.status_code == 200
+        except:
+            return False
+
+    def _model_files_exist(self, model_path):
+        """Check if required model files exist locally."""
+        required_files = ['hyperparams.yaml', 'custom.py', 'embedding_model.ckpt']
+        return all(os.path.exists(os.path.join(model_path, f)) for f in required_files)
+
+    def _load_model_with_fallback(self, model_path):
+        """Load model with network connectivity fallback."""
+        try:
+            # First, check if model files already exist locally
+            if self._model_files_exist(model_path):
+                print("Model files found locally, loading from cache...")
+                return SpeakerRecognition.from_hparams(
+                    source="speechbrain/spkrec-ecapa-voxceleb", 
+                    savedir=model_path,            
+                    local_strategy=LocalStrategy.COPY_SKIP_CACHE
+                )
+            
+            # Check network connectivity
+            if not self._check_network_connectivity():
+                raise ConnectionError("No network connectivity to download models")
+            
+            print("Downloading model from HuggingFace Hub...")
+            return SpeakerRecognition.from_hparams(
+                source="speechbrain/spkrec-ecapa-voxceleb", 
+                savedir=model_path,            
+                local_strategy=LocalStrategy.COPY_SKIP_CACHE
+            )
+            
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            
+            # If we have partial model files, try to use them
+            if os.path.exists(model_path) and os.listdir(model_path):
+                print("Attempting to use existing model files...")
+                try:
+                    return SpeakerRecognition.from_hparams(
+                        source=model_path,  # Use local path directly
+                        savedir=model_path
+                    )
+                except Exception as local_e:
+                    print(f"Failed to load local model: {local_e}")
+            
+            # If all else fails, provide a helpful error message
+            raise RuntimeError(
+                f"Failed to load SpeechBrain model. "
+                f"Network error: {e}. "
+                f"Please ensure internet connectivity or download the model manually. "
+                f"Model directory: {model_path}"
+            )
 
     def load_embeddings(self):
         """
