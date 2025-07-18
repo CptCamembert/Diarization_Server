@@ -84,7 +84,33 @@ async def diarize_teach(request: Request):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/diarize_teach_delete")
+async def diarize_teach_delete(request: Request):
+    """
+    Endpoint to delete a speaker's embedding.
+    Parameters:
+    - name parameter as query parameter to specify the speaker to delete
+    """
+    try:
+        # Get name from query parameters
+        query_params = request.query_params
+        name = query_params.get("name", "")
+        for char in [" ", "/", "\\", ":", "*", "?", "\"", "<", ">", "|"]:
+            name = str.replace(name, char, "-")
+
+        # Delete the embedding
+        model.delete_embedding(name)
+        model.save_embeddings()
+
+        # Return success response
+        return {
+            "success": True
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/health")
 async def health_check():

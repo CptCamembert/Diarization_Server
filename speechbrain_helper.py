@@ -158,6 +158,19 @@ class SpeechBrainRecognizer:
 
         return likely_speakers
 
+    def delete_embedding(self, name):
+        """
+        Delete a speaker's embedding.
+
+        Args:
+            name (str): The name of the speaker to delete the embedding for.
+        """
+        if name in self.ref_embeddings:
+            del self.ref_embeddings[name]
+            print(f"Deleted embedding for {name}")
+        else:
+            print(f"No embedding found for {name}")
+
     def compare_speakers(self, embedding):
         """
         Compare the given embedding to the reference embeddings.
@@ -184,6 +197,10 @@ class SpeechBrainRecognizer:
         This method is called when the system is shut down. It saves the reference
         speaker embeddings to disk using PyTorch's `torch.save()` method.
         """
+        # Empty embeddings directory before saving
+        for file in glob.glob(f"{EMBEDDINGS_DIR}/*.pt"):
+            os.remove(file)
+
         # Save the reference speaker embeddings to disk
         for ref_speaker, ref_embedding in self.ref_embeddings.items():
             # Create the file path for the embedding
